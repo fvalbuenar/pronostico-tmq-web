@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pronóstico operabilidad · TMQ ENAP</title>
+<link rel="icon" href="favicon.png">
+<style>
+:root{--azul:#2B2A5E;--borde:#e3e5ec;--texto:#31333f;--gris:#6b6f80;--sel:#2F6E9E}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:var(--texto);font-family:"Source Sans Pro","Segoe UI",Arial,sans-serif;font-size:14px}
+.head{display:flex;align-items:center;gap:22px;padding:8px 40px;box-shadow:0 2px 6px rgba(43,42,94,.14);
+ border-bottom:4px solid transparent;border-image:linear-gradient(90deg,#E6007E 0%,#6B3E8E 45%,#2F6E9E 100%) 1;
+ position:sticky;top:0;background:#fff;z-index:20}
+.head .tit{flex:1}.head .t1{font-size:1.45rem;font-weight:700;color:var(--azul);line-height:1.15}
+.head .t2{font-size:.85rem;color:var(--gris)}.head img.tmq{height:58px}.head img.enap{height:32px}
+main{padding:14px 40px 30px}
+.fila{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,2.5fr);gap:18px}
+.mini-tit{font-weight:700;font-size:1.02rem;color:#1f2a36;margin:6px 0 6px}
+.ctl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+select{font:inherit;padding:7px 10px;border:1px solid #d5d8e0;border-radius:8px;background:#f4f5f8;min-width:200px}
+.seg{display:inline-flex;border:1px solid #d5d8e0;border-radius:8px;overflow:hidden}
+.seg button{font:inherit;border:0;background:#fff;padding:6px 13px;cursor:pointer;color:#31333f;border-right:1px solid #e3e5ec}
+.seg button:last-child{border-right:0}
+.seg button.on{background:#eaf2fa;color:var(--sel);font-weight:600;box-shadow:inset 0 0 0 1px var(--sel)}
+.lbl{font-size:.85rem;color:var(--gris);margin-right:4px}
+.nota{color:#8a8984;font-size:.8rem;margin-top:4px}
+.aviso{background:#fff7e0;border:1px solid #f1d58a;border-radius:8px;padding:8px 12px;margin:0 0 10px}
+.sem-h{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin:18px 0 6px}
+#grafico{width:100%;height:270px}
+.fila>div{min-width:0}#ahora,#tabla{overflow-x:auto}
+@media (max-width:900px){.fila{grid-template-columns:1fr}main{padding:10px max(12px,env(safe-area-inset-left))}
+ .head{padding:8px 12px;position:static;gap:10px}.head img.tmq{height:38px}.head img.enap{height:22px}
+ .head .t1{font-size:1.05rem}.head .t2{font-size:.75rem}select{min-width:0}}
+</style></head><body>
+<div class="head"><img class="tmq" src="logo_tmq.png" alt="">
+ <div class="tit"><div class="t1">Pronóstico de operabilidad · próximos 9 días</div>
+ <div class="t2">Terminal Marítimo Quintero · ENAP · Bahía de Quintero · <span id="sello"></span></div></div>
+ <img class="enap" src="logo_enap.png" alt=""></div>
+<main>
+<div id="aviso"></div>
+<div class="fila">
+ <div>
+  <div class="ctl"><span class="lbl">Criterio</span><select id="modo"></select></div>
+  <div class="mini-tit" id="t_ahora"></div>
+  <div id="ahora"></div>
+  <div class="nota">Multiboyas = peor de LPG, Multicrudo y Barcaza (mismos límites y estación AWFOS).
+   «med.» = ola medida por la boya. Pasa el cursor sobre una celda para ver el detalle.</div>
+ </div>
+ <div>
+  <div class="ctl"><span class="mini-tit" style="margin:0 8px 0 0">Pronóstico por terminal</span>
+   <select id="grupo" style="min-width:150px"></select>
+   <span class="seg" id="vista"></span><span class="seg" id="param"></span></div>
+  <div id="tabla"></div><div id="grafico"></div><div class="nota" id="nota_t"></div>
+ </div>
+</div>
+<div class="sem-h"><div class="mini-tit" style="font-size:1.15rem" id="t_sem"></div>
+ <div><span class="lbl">🌊 Ola</span><span class="seg" id="s_ola"></span></div>
+ <div><span class="lbl">💨 Viento</span><span class="seg" id="s_viento"></span></div></div>
+<div id="semaforo"></div>
+<div class="nota" style="margin-top:10px">Página generada automáticamente por el PC de captura (AWFOS, Windy,
+ Ventusky, Meteoarmada, SITPORT y boyas Spotter). Solo lectura.</div>
+</main>
+<script src="plotly.min.js"></script>
+<script>
+const E={modo:null,ola:null,viento:null,grupo:null,vista:"Tabla 4 días",param:"Viento y ráfaga"};
+let D=null;
+const $=id=>document.getElementById(id);
+function seg(id,opts,key){const el=$(id);el.innerHTML="";opts.forEach(o=>{const b=document.createElement("button");
+ b.textContent=o;b.className=E[key]===o?"on":"";b.onclick=()=>{E[key]=o;pintar()};el.appendChild(b)})}
+function pieza(h){return h?D.piezas[h]:""}
+function pintar(){
+ const k=D.idx[E.modo+"|"+E.ola+"|"+E.viento];
+ const tit=Object.fromEntries(D.modos)[E.modo];
+ seg("s_ola",D.ola,"ola");seg("s_viento",D.viento,"viento");
+ seg("vista",["Tabla 4 días","Gráfico 9 días"],"vista");
+ $("param").style.display=E.vista==="Gráfico 9 días"?"":"none";seg("param",["Ola","Viento y ráfaga","Niebla"],"param");
+ $("t_sem").textContent="Semáforo 9 días desde hoy · "+tit;
+ if(!k){$("semaforo").innerHTML="<p>Sin datos para esta combinación.</p>";return}
+ $("t_ahora").textContent="¿Se puede amarrar ahora? · próximas "+k.n_ahora+" h";
+ $("ahora").innerHTML=pieza(k.ahora);
+ $("semaforo").innerHTML=pieza(k.sem)||"<p>No hay pronóstico para esta combinación.</p>";
+ const g=k.grupos[E.grupo]||{};
+ if(E.vista==="Tabla 4 días"){$("grafico").style.display="none";Plotly.purge("grafico");
+  $("tabla").innerHTML=pieza(g.tabla)||"<p>Sin datos.</p>";$("nota_t").textContent=g.nota||""}
+ else{$("tabla").innerHTML="";$("nota_t").textContent="";$("grafico").style.display="";
+  const p={"Ola":"ola","Viento y ráfaga":"viento","Niebla":"niebla"}[E.param];const j=pieza(g[p]);
+  if(!j){Plotly.purge("grafico");$("grafico").innerHTML="<p>Sin datos.</p>";return}
+  const f=JSON.parse(j);const alto=(f.layout&&f.layout.height)||270;$("grafico").style.height=alto+"px";
+  const L=f.layout||{};L.margin=Object.assign({},L.margin||{},{l:52});L.yaxis=Object.assign({},L.yaxis||{},{automargin:true});
+  L.autosize=true;Plotly.react("grafico",f.data,L,{displaylogo:false,responsive:true})}
+}
+fetch("datos.json?v="+Date.now()).then(r=>r.json()).then(d=>{D=d;
+ $("sello").textContent="datos del "+d.datos+" (publicado "+d.generado+")";
+ const m=$("modo");d.modos.forEach(([c,t])=>{const o=document.createElement("option");o.value=c;o.textContent=t;m.appendChild(o)});
+ const gr=$("grupo");d.grupos.forEach(g=>{const o=document.createElement("option");o.textContent=g;gr.appendChild(o)});
+ E.modo=d.modos[0][0];E.ola=d.ola.includes("AWFOS")?"AWFOS":d.ola[0];
+ E.viento=d.viento.includes("Promedio")?"Promedio":d.viento[0];E.grupo=d.grupos[0];
+ m.onchange=()=>{E.modo=m.value;pintar()};gr.onchange=()=>{E.grupo=gr.value;pintar()};
+ const horas=(Date.now()-new Date(d.datos.split(" ")[0].split("-").reverse().join("-")+"T"+d.datos.split(" ")[1]).getTime())/36e5;
+ if(horas>6)$("aviso").innerHTML="<div class='aviso'>⏳ Los datos son del <b>"+d.datos+"</b> (hace "+Math.round(horas)+
+  " h): el PC que captura no ha publicado desde entonces.</div>";
+ pintar()}).catch(e=>{$("semaforo").innerHTML="<p>No se pudieron cargar los datos: "+e+"</p>"});
+</script></body></html>
